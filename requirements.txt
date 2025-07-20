@@ -1,0 +1,5 @@
+asgiref==3.9.1
+Django==5.2.4
+django-dynamic-formsets==0.0.8
+pillow==11.3.0
+sqlparse==0.5.3
