@@ -1,137 +1,93 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.forms import formset_factory
-from django.http import HttpResponse
-from .models import Vehicle, VehicleImage, FaultyPart, FaultyPartImage, WheelImage, VehicleDocument
-from .forms import VehicleForm, VehicleImageForm, FaultyPartForm, FaultyPartImageForm, WheelImageForm, VehicleDocumentForm
-import json
+from django.http import HttpResponse, JsonResponse
 import zipfile
 import os
 from io import BytesIO
-from django.conf import settings
+from .models import Cycle, Attachment
+from .forms import CycleForm
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 def home(request):
-    vehicles = Vehicle.objects.all()
-    return render(request, 'home.html', {'vehicles': vehicles})
+    cycles = Cycle.objects.all()
+    return render(request, 'home.html', {'cycles': cycles})
 
-def add_vehicle(request):
-    VehicleImageFormSet = formset_factory(VehicleImageForm, extra=1)
-    WheelImageFormSet = formset_factory(WheelImageForm, extra=1)
-    VehicleDocumentFormSet = formset_factory(VehicleDocumentForm, extra=1)
-
+def add_cycle(request):
     if request.method == 'POST':
-        vehicle_form = VehicleForm(request.POST)
-        vehicle_image_formset = VehicleImageFormSet(request.POST, request.FILES, prefix='vehicle_images')
-        wheel_image_formset = WheelImageFormSet(request.POST, request.FILES, prefix='wheel_images')
-        document_formset = VehicleDocumentFormSet(request.POST, request.FILES, prefix='documents')
-
-        if (vehicle_form.is_valid() and vehicle_image_formset.is_valid() and
-            wheel_image_formset.is_valid() and document_formset.is_valid()):
-            vehicle = vehicle_form.save()
-
-            # Save vehicle images
-            for form in vehicle_image_formset:
-                if form.cleaned_data.get('image'):
-                    VehicleImage.objects.create(vehicle=vehicle, image=form.cleaned_data['image'])
-
-            # Save wheel images
-            for form in wheel_image_formset:
-                if form.cleaned_data.get('image'):
-                    WheelImage.objects.create(vehicle=vehicle, image=form.cleaned_data['image'])
-
-            # Save documents
-            for form in document_formset:
-                if form.cleaned_data.get('document'):
-                    VehicleDocument.objects.create(vehicle=vehicle, document=form.cleaned_data['document'])
-
-            return redirect('vehicle_detail', vehicle_id=vehicle.id)
+        cycle_form = CycleForm(request.POST)
+        if cycle_form.is_valid():
+            cycle = cycle_form.save()
+            if 'bulk_images' in request.FILES:
+                for image in request.FILES.getlist('bulk_images'):
+                    logger.info(f"Processing image: {image.name} for cycle {cycle.cycle_id}")
+                    try:
+                        attachment = Attachment.objects.create(cycle=cycle, file=image, file_type='photo')
+                        logger.info(f"Saved image to: {attachment.file.path}")
+                    except Exception as e:
+                        logger.error(f"Failed to save image {image.name}: {e}")
+            return redirect('home')
     else:
-        vehicle_form = VehicleForm()
-        vehicle_image_formset = VehicleImageFormSet(prefix='vehicle_images')
-        wheel_image_formset = WheelImageFormSet(prefix='wheel_images')
-        document_formset = VehicleDocumentFormSet(prefix='documents')
+        cycle_form = CycleForm()
+    return render(request, 'add_cycle.html', {'cycle_form': cycle_form})
 
-    return render(request, 'add_vehicle.html', {
-        'vehicle_form': vehicle_form,
-        'vehicle_image_formset': vehicle_image_formset,
-        'wheel_image_formset': wheel_image_formset,
-        'document_formset': document_formset,
-    })
-
-def vehicle_detail(request, vehicle_id):
-    vehicle = get_object_or_404(Vehicle, id=vehicle_id)
-    FaultyPartImageFormSet = formset_factory(FaultyPartImageForm, extra=1)
-
+def modify_cycle(request, cycle_id):
+    cycle_id = cycle_id.replace(' ', '-')
+    cycle = get_object_or_404(Cycle, cycle_id=cycle_id)
     if request.method == 'POST':
-        faulty_part_form = FaultyPartForm(request.POST)
-        faulty_part_image_formset = FaultyPartImageFormSet(request.POST, request.FILES, prefix='faulty_part_images')
-
-        if faulty_part_form.is_valid() and faulty_part_image_formset.is_valid():
-            faulty_part = faulty_part_form.save(commit=False)
-            faulty_part.vehicle = vehicle
-            faulty_part.save()
-
-            # Save faulty part images
-            for form in faulty_part_image_formset:
-                if form.cleaned_data.get('image'):
-                    FaultyPartImage.objects.create(faulty_part=faulty_part, image=form.cleaned_data['image'])
-
-            return redirect('vehicle_detail', vehicle_id=vehicle.id)
+        cycle_form = CycleForm(request.POST, instance=cycle)
+        if cycle_form.is_valid():
+            cycle = cycle_form.save()
+            if 'delete_attachments' in request.POST:
+                delete_ids = request.POST.getlist('delete_attachments')
+                cycle.attachments.filter(id__in=delete_ids).delete()
+            if 'bulk_images' in request.FILES:
+                for image in request.FILES.getlist('bulk_images'):
+                    logger.info(f"Processing image: {image.name} for cycle {cycle.cycle_id}")
+                    try:
+                        attachment = Attachment.objects.create(cycle=cycle, file=image, file_type='photo')
+                        logger.info(f"Saved image to: {attachment.file.path}")
+                    except Exception as e:
+                        logger.error(f"Failed to save image {image.name}: {e}")
+            return redirect('home')
     else:
-        faulty_part_form = FaultyPartForm()
-        faulty_part_image_formset = FaultyPartImageFormSet(prefix='faulty_part_images')
-
-    return render(request, 'vehicle_detail.html', {
-        'vehicle': vehicle,
-        'faulty_part_form': faulty_part_form,
-        'faulty_part_image_formset': faulty_part_image_formset,
-    })
+        cycle_form = CycleForm(instance=cycle)
+    return render(request, 'modify_cycle.html', {'cycle_form': cycle_form, 'cycle': cycle})
 
 def backup_data(request):
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        vehicles = Vehicle.objects.all()
-        vehicle_data = []
-        for vehicle in vehicles:
-            vehicle_dict = {
-                'id': vehicle.id,
-                'car_number': vehicle.car_number,
-                'brand': vehicle.brand,
-                'kilometers': vehicle.kilometers,
-                'cylinder_count': vehicle.cylinder_count,
-                'mesures': vehicle.mesures,
-                'ligne': vehicle.ligne,
-                'entry_date': str(vehicle.entry_date),
-                'faulty_parts': [
-                    {
-                        'part_name': part.part_name,
-                        'description': part.description,
-                        'images': [image.image.name for image in part.images.all()]
-                    } for part in vehicle.faulty_parts.all()
-                ],
-                'images': [image.image.name for image in vehicle.images.all()],
-                'wheel_images': [image.image.name for image in vehicle.wheel_images.all()],
-                'documents': [doc.document.name for doc in vehicle.documents.all()]
-            }
-            vehicle_data.append(vehicle_dict)
+    if request.method == 'POST':
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        cycles = Cycle.objects.filter(date__range=[start_date, end_date])
 
-        zip_file.writestr('vehicles.json', json.dumps(vehicle_data, indent=2))
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for cycle in cycles:
+                folder_path = f"{cycle.control_type}/{cycle.date.strftime('%Y')}/{cycle.date.strftime('%m')}/{cycle.date.strftime('%d')}/{cycle.cycle_id}"
+                info_content = f"Type: {cycle.control_type}\nDate: {cycle.date}\nID: {cycle.cycle_id}"
+                zip_file.writestr(f"{folder_path}/info.txt", info_content)
+                for attachment in cycle.attachments.all():
+                    if os.path.exists(attachment.file.path):
+                        zip_file.write(attachment.file.path, f"{folder_path}/{os.path.basename(attachment.file.path)}")
 
-        for vehicle in vehicles:
-            for image in vehicle.images.all():
-                if os.path.exists(image.image.path):
-                    zip_file.write(image.image.path, image.image.name)
-            for wheel_image in vehicle.wheel_images.all():
-                if os.path.exists(wheel_image.image.path):
-                    zip_file.write(wheel_image.image.path, wheel_image.image.name)
-            for document in vehicle.documents.all():
-                if os.path.exists(document.document.path):
-                    zip_file.write(document.document.path, document.document.name)
-            for part in vehicle.faulty_parts.all():
-                for image in part.images.all():
-                    if os.path.exists(image.image.path):
-                        zip_file.write(image.image.path, image.image.name)
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="cycle_backup_{start_date}_to_{end_date}.zip"'
+        return response
+    return render(request, 'backup.html')
 
-    buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/zip')
-    response['Content-Disposition'] = 'attachment; filename="vehicle_backup.zip"'
-    return response
+def search_cycles(request):
+    cycles = []
+    if request.method == 'POST':
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        if start_date and end_date:
+            cycles = Cycle.objects.filter(date__range=[start_date, end_date])
+    return render(request, 'search_cycles.html', {'cycles': cycles})
+
+def cycle_images(request, cycle_id):
+    cycle_id = cycle_id.replace(' ', '-')
+    cycle = get_object_or_404(Cycle, cycle_id=cycle_id)
+    images = [{'id': a.id, 'url': a.file.url} for a in cycle.attachments.all()]
+    return JsonResponse({'images': images})

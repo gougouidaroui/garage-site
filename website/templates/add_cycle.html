@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6 fade-in">
+    <h2 class="text-2xl font-semibold text-[#008143] mb-6">Add New Cycle</h2>
+    <form method="post" enctype="multipart/form-data" id="cycleForm" class="space-y-6">
+        {% csrf_token %}
+        <div>
+            <label for="{{ cycle_form.control_type.id_for_label }}" class="block text-sm font-medium text-[#008143]">Control Type</label>
+            {{ cycle_form.control_type }}
+        </div>
+        <div>
+            <label for="{{ cycle_form.date.id_for_label }}" class="block text-sm font-medium text-[#008143]">Date</label>
+            {{ cycle_form.date }}
+        </div>
+        <div>
+            <label for="{{ cycle_form.cycle_id.id_for_label }}" class="block text-sm font-medium text-[#008143]">ID</label>
+            {{ cycle_form.cycle_id }}
+        </div>
+        <div>
+            <h3 class="text-xl font-medium text-[#008143] mt-6">Upload Images</h3>
+            <div>
+                <label for="bulk_images" class="block text-sm font-medium text-[#008143]">Select Multiple Images</label>
+                <input type="file" id="bulk_images" name="bulk_images" multiple class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div id="bulkImagePreview" class="flex flex-wrap mt-2"></div>
+            </div>
+        </div>
+        <button type="submit" class="bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition mt-4">Add Cycle</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bulkImageInput = document.getElementById('bulk_images');
+    const bulkPreview = document.getElementById('bulkImagePreview');
+    const form = document.getElementById('cycleForm');
+
+    bulkImageInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files.length === 0) return;
+
+        bulkPreview.innerHTML = ''; // Clear previous previews
+        for (let file of files) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'relative';
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview-image max-w-[100px] max-h-[100px] m-2 cursor-pointer';
+                const removeBtn = document.createElement('span');
+                removeBtn.textContent = '×';
+                removeBtn.className = 'remove-image text-red-500 cursor-pointer absolute top-0 right-0 mt-1 mr-1';
+                removeBtn.onclick = function() {
+                    imgContainer.remove();
+                    const dt = new DataTransfer();
+                    for (let f of Array.from(bulkImageInput.files)) {
+                        if (f.name !== file.name) dt.items.add(f);
+                    }
+                    bulkImageInput.files = dt.files;
+                    if (bulkImageInput.files.length === 0) {
+                        bulkPreview.innerHTML = '';
+                    }
+                };
+                imgContainer.appendChild(img);
+                imgContainer.appendChild(removeBtn);
+                bulkPreview.appendChild(imgContainer);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        if (bulkImageInput.files.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one image.');
+        } else {
+            // Optionally log files being sent
+            console.log('Submitting with files:', bulkImageInput.files);
+        }
+    });
+});
+</script>
+<style>
+    .preview-image { max-width: 100px; max-height: 100px; margin: 5px; cursor: pointer; }
+    .remove-image { color: red; cursor: pointer; margin-left: 5px; }
+</style>
+{% endblock %}

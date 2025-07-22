@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6 fade-in">
+    <h2 class="text-2xl font-semibold text-[#008143] mb-6">Search Cycles by Date</h2>
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div>
+            <label for="start_date" class="block text-sm font-medium text-[#008143]">Start Date</label>
+            <input type="date" id="start_date" name="start_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+        <div>
+            <label for="end_date" class="block text-sm font-medium text-[#008143]">End Date</label>
+            <input type="date" id="end_date" name="end_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+        </div>
+        <button type="submit" class="bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition mt-4">Search</button>
+    </form>
+
+    {% if cycles %}
+    <h3 class="text-xl font-medium text-[#008143] mt-6">Found Cycles</h3>
+    <ul class="mt-4 space-y-2">
+        {% for cycle in cycles %}
+        <li>
+            <a href="#" class="text-[#008143] hover:underline" onclick="showImagesPopup('{{ cycle.cycle_id }}'); return false;">
+                {{ cycle.cycle_id }} ({{ cycle.date }} - {{ cycle.control_type }})
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<div id="imagePopup" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg max-w-2xl w-full relative">
+        <button class="absolute top-2 right-2 text-red-500 text-2xl" onclick="closePopup()">×</button>
+        <h3 id="popupCycleId" class="text-xl font-semibold text-[#008143] mb-4"></h3>
+        <div id="popupImages" class="flex flex-wrap gap-4"></div>
+    </div>
+</div>
+
+<script>
+function showImagesPopup(cycleId) {
+    const popup = document.getElementById('imagePopup');
+    const popupCycleId = document.getElementById('popupCycleId');
+    const popupImages = document.getElementById('popupImages');
+    popupCycleId.textContent = `Images for Cycle ${cycleId}`;
+    popupImages.innerHTML = '';
+
+    // Fetch images for the cycle (simplified client-side example)
+    fetch(`/api/cycle-images/${cycleId}/`)
+        .then(response => response.json())
+        .then(data => {
+            data.images.forEach(image => {
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'relative';
+                const img = document.createElement('img');
+                img.src = image.url;
+                img.className = 'max-w-[200px] max-h-[200px] m-2 cursor-pointer';
+                imgContainer.appendChild(img);
+                popupImages.appendChild(imgContainer);
+            });
+            popup.classList.remove('hidden');
+        })
+        .catch(error => console.error('Error fetching images:', error));
+}
+
+function closePopup() {
+    document.getElementById('imagePopup').classList.add('hidden');
+}
+
+// Placeholder for API (to be implemented)
+</script>
+<style>
+    .preview-image { max-width: 100px; max-height: 100px; margin: 5px; cursor: pointer; }
+    .remove-image { color: red; cursor: pointer; margin-left: 5px; }
+</style>
+{% endblock %}

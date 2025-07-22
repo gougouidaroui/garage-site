@@ -1,29 +1,27 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6 fade-in">
-    <h2 class="text-2xl font-semibold text-gray-800 mb-6">All Vehicles</h2>
-    <a href="{% url 'add_vehicle' %}" class="inline-block bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition mb-4">Add New Vehicle</a>
-    {% if vehicles %}
+    <h2 class="text-2xl font-semibold text-[#008143] mb-6">All Cycles</h2>
+    <a href="{% url 'add_cycle' %}" class="inline-block bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition mb-4">Add New Cycle</a>
+    {% if cycles %}
     <div class="overflow-x-auto">
         <table class="w-full table-auto border-collapse">
             <thead>
-                <tr class="bg-gray-200 text-gray-700">
-                    <th class="px-4 py-2 text-left">Car Number</th>
-                    <th class="px-4 py-2 text-left">Brand</th>
-                    <th class="px-4 py-2 text-left">Kilometers</th>
-                    <th class="px-4 py-2 text-left">Entry Date</th>
+                <tr class="bg-[#D5FD9E] text-[#008143]">
+                    <th class="px-4 py-2 text-left">Control Type</th>
+                    <th class="px-4 py-2 text-left">Date</th>
+                    <th class="px-4 py-2 text-left">ID</th>
                     <th class="px-4 py-2 text-left">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for vehicle in vehicles %}
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="px-4 py-2">{{ vehicle.car_number }}</td>
-                    <td class="px-4 py-2">{{ vehicle.brand }}</td>
-                    <td class="px-4 py-2">{{ vehicle.kilometers }}</td>
-                    <td class="px-4 py-2">{{ vehicle.entry_date }}</td>
+                {% for cycle in cycles %}
+                <tr class="border-b hover:bg-[#E8FEB4]">
+                    <td class="px-4 py-2">{{ cycle.control_type }}</td>
+                    <td class="px-4 py-2">{{ cycle.date }}</td>
+                    <td class="px-4 py-2">{{ cycle.cycle_id }}</td>
                     <td class="px-4 py-2">
-                        <a href="{% url 'vehicle_detail' vehicle.id %}" class="text-blue-500 hover:underline">View Details</a>
+                        <a href="{% url 'modify_cycle' cycle.cycle_id %}" class="text-[#008143] hover:underline">Modify</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -31,7 +29,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-gray-600">No vehicles recorded yet.</p>
+    <p class="text-[#4A9A14]">No cycles recorded yet.</p>
     {% endif %}
 </div>
 {% endblock %}

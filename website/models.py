@@ -3,107 +3,51 @@ from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
 import os
 
-def vehicle_image_upload_path(instance, filename):
-    # Structure: year/month/day/car-number/images/filename
-    date = instance.vehicle.entry_date
-    car_number = instance.vehicle.car_number
+def attachment_upload_path(instance, filename):
+    date = instance.cycle.date
+    control_type = instance.cycle.control_type
+    cycle_id = instance.cycle.cycle_id
     return os.path.join(
+        control_type,
         str(date.year),
         str(date.month).zfill(2),
         str(date.day).zfill(2),
-        car_number,
-        'images',
+        cycle_id,
         filename
     )
 
-def faulty_part_image_upload_path(instance, filename):
-    # Structure: year/month/day/car-number/images/filename
-    date = instance.faulty_part.vehicle.entry_date
-    car_number = instance.faulty_part.vehicle.car_number
-    return os.path.join(
-        str(date.year),
-        str(date.month).zfill(2),
-        str(date.day).zfill(2),
-        car_number,
-        'images',
-        filename
+class Cycle(models.Model):
+    CONTROL_TYPES = (
+        ('mutation', 'Mutation'),
+        ('parc_neuf', 'Parc Neuf'),
+        ('duplicata', 'Duplicata'),
     )
-
-def wheel_image_upload_path(instance, filename):
-    # Structure: year/month/day/car-number/images/filename
-    date = instance.vehicle.entry_date
-    car_number = instance.vehicle.car_number
-    return os.path.join(
-        str(date.year),
-        str(date.month).zfill(2),
-        str(date.day).zfill(2),
-        car_number,
-        'images',
-        filename
-    )
-
-# Vehicle model to store vehicle details
-class Vehicle(models.Model):
-    entry_date = models.DateField(auto_now_add=True)
-    car_number = models.CharField(max_length=20, unique=True)
-    brand = models.CharField(max_length=50)
-    kilometers = models.PositiveIntegerField()
-    cylinder_count = models.PositiveIntegerField()
-    mesures = models.CharField(max_length=100, blank=True)
-    ligne = models.CharField(max_length=100, blank=True)
+    control_type = models.CharField(max_length=20, choices=CONTROL_TYPES)
+    date = models.DateField()
+    cycle_id = models.CharField(max_length=20, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"{self.car_number} - {self.brand}"
-
-# Image model for vehicle images
-class VehicleImage(models.Model):
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to=vehicle_image_upload_path)
-    created_at = models.DateTimeField(auto_now_add=True)
+    def save(self, *args, **kwargs):
+        # Replace spaces with hyphens in cycle_id before saving
+        self.cycle_id = self.cycle_id.replace(' ', '-')
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Image for {self.vehicle.car_number}"
+        return f"{self.control_type} - {self.cycle_id} ({self.date})"
 
-# Faulty part model
-class FaultyPart(models.Model):
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='faulty_parts')
-    part_name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.part_name} for {self.vehicle.car_number}"
-
-# Image model for faulty parts
-class FaultyPartImage(models.Model):
-    faulty_part = models.ForeignKey(FaultyPart, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to=faulty_part_image_upload_path)
-    created_at = models.DateTimeField(auto_now_add=True)
+class Attachment(models.Model):
+    ATTACHMENT_TYPES = (
+        ('photo', 'Photo'),
+        ('video', 'Video'),
+    )
+    file = models.ImageField(upload_to=attachment_upload_path)
+    file_type = models.CharField(max_length=10, choices=ATTACHMENT_TYPES, default='photo')
+    cycle = models.ForeignKey(Cycle, on_delete=models.CASCADE, related_name='attachments')
 
     def __str__(self):
-        return f"Image for {self.faulty_part.part_name}"
+        return f"Attachment for {self.cycle.cycle_id}"
 
-# Image model for wheels
-class WheelImage(models.Model):
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='wheel_images')
-    image = models.ImageField(upload_to=wheel_image_upload_path)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Wheel image for {self.vehicle.car_number}"
-
-# Document model for additional documents
-class VehicleDocument(models.Model):
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='documents')
-    document = models.FileField(upload_to=vehicle_image_upload_path)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Document for {self.vehicle.car_number}"
-
-# File deletion signals
 @receiver(post_delete)
 def delete_files_when_row_deleted_from_db(sender, instance, **kwargs):
     for field in sender._meta.concrete_fields:
