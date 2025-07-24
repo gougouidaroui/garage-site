@@ -1,35 +1,20 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6 fade-in">
-    <h2 class="text-2xl font-semibold text-[#008143] mb-6">All Cycles</h2>
-    <a href="{% url 'add_cycle' %}" class="inline-block bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition mb-4">Add New Cycle</a>
+    <h2 class="text-2xl font-semibold text-[#008143] mb-6">Cycle List</h2>
     {% if cycles %}
-    <div class="overflow-x-auto">
-        <table class="w-full table-auto border-collapse">
-            <thead>
-                <tr class="bg-[#D5FD9E] text-[#008143]">
-                    <th class="px-4 py-2 text-left">Control Type</th>
-                    <th class="px-4 py-2 text-left">Date</th>
-                    <th class="px-4 py-2 text-left">ID</th>
-                    <th class="px-4 py-2 text-left">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cycle in cycles %}
-                <tr class="border-b hover:bg-[#E8FEB4]">
-                    <td class="px-4 py-2">{{ cycle.control_type }}</td>
-                    <td class="px-4 py-2">{{ cycle.date }}</td>
-                    <td class="px-4 py-2">{{ cycle.cycle_id }}</td>
-                    <td class="px-4 py-2">
-                        <a href="{% url 'modify_cycle' cycle.cycle_id %}" class="text-[#008143] hover:underline">Modify</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <ul class="mt-4 space-y-2">
+        {% for cycle in cycles %}
+        <li>
+            <a href="{% url 'modify_cycle' cycle.cycle_id %}" class="block p-3 bg-gray-100 rounded-lg hover:bg-[#95E35D] hover:text-white transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-md">
+                {{ cycle.cycle_id }} ({{ cycle.date }} - {{ cycle.control_type }})
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
     {% else %}
-    <p class="text-[#4A9A14]">No cycles recorded yet.</p>
+    <p class="text-gray-500">No cycles found.</p>
     {% endif %}
+    <a href="{% url 'add_cycle' %}" class="mt-4 inline-block bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition">Add New Cycle</a>
 </div>
 {% endblock %}

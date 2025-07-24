@@ -1,35 +1,60 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6 fade-in">
-    <h2 class="text-2xl font-semibold text-[#008143] mb-6">Search Cycles by Date</h2>
+    <h2 class="text-2xl font-semibold text-[#008143] mb-6">Search Cycles</h2>
     <form method="post" class="space-y-6">
         {% csrf_token %}
         <div>
             <label for="start_date" class="block text-sm font-medium text-[#008143]">Start Date</label>
-            <input type="date" id="start_date" name="start_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            <input type="date" id="start_date" name="start_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div>
             <label for="end_date" class="block text-sm font-medium text-[#008143]">End Date</label>
-            <input type="date" id="end_date" name="end_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+            <input type="date" id="end_date" name="end_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+            <label for="cycle_id" class="block text-sm font-medium text-[#008143]">Cycle ID</label>
+            <input type="text" id="cycle_id" name="cycle_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter Cycle ID">
         </div>
         <button type="submit" class="bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition mt-4">Search</button>
+        <a href="?sort={% if sort_order == 'asc' %}desc{% else %}asc{% endif %}" class="ml-4 bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 transition">
+            Sort: {% if sort_order == 'asc' %}Ascending{% else %}Descending{% endif %}
+        </a>
     </form>
+    <p class="mt-2 text-sm text-gray-600">Note: The system automatically replaces spaces in Cycle IDs with hyphens (-). No need to adjust manually!</p>
 
-    {% if cycles %}
+    {% if page_obj %}
     <h3 class="text-xl font-medium text-[#008143] mt-6">Found Cycles</h3>
     <ul class="mt-4 space-y-2">
-        {% for cycle in cycles %}
+        {% for cycle in page_obj %}
         <li>
-            <a href="#" class="text-[#008143] hover:underline" onclick="showImagesPopup('{{ cycle.cycle_id }}'); return false;">
+            <a href="#" class="block p-3 bg-gray-100 rounded-lg hover:bg-[#95E35D] hover:text-white transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-md" onclick="showImagesPopup('{{ cycle.cycle_id }}'); return false;">
                 {{ cycle.cycle_id }} ({{ cycle.date }} - {{ cycle.control_type }})
             </a>
         </li>
         {% endfor %}
     </ul>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="mt-4 flex justify-between">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if sort_order != 'asc' %}&sort={{ sort_order }}{% endif %}" class="bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition">Previous</a>
+        {% else %}
+        <span class="text-gray-400 px-4 py-2">Previous</span>
+        {% endif %}
+        <span class="px-4 py-2">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if sort_order != 'asc' %}&sort={{ sort_order }}{% endif %}" class="bg-[#95E35D] text-white px-4 py-2 rounded hover:bg-[#4A9A14] transition">Next</a>
+        {% else %}
+        <span class="text-gray-400 px-4 py-2">Next</span>
+        {% endif %}
+    </div>
+    {% endif %}
     {% endif %}
 </div>
 
-<div id="imagePopup" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+<div id="imagePopup" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-45">
     <div class="bg-white p-6 rounded-lg max-w-2xl w-full relative">
         <button class="absolute top-2 right-2 text-red-500 text-2xl" onclick="closePopup()">×</button>
         <h3 id="popupCycleId" class="text-xl font-semibold text-[#008143] mb-4"></h3>
@@ -37,7 +62,23 @@
     </div>
 </div>
 
+<div id="zoomPopup" class="fixed inset-0 bg-black bg-opacity-90 hidden flex items-center justify-center z-50">
+    <div class="relative">
+        <button class="absolute top-4 right-4 text-white text-3xl" onclick="closeZoom()">×</button>
+        <img id="zoomImage" class="max-h-[90vh] max-w-[90vw] object-contain">
+    </div>
+</div>
+
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePopup();
+            closeZoom();
+        }
+    });
+});
+
 function showImagesPopup(cycleId) {
     const popup = document.getElementById('imagePopup');
     const popupCycleId = document.getElementById('popupCycleId');
@@ -45,7 +86,6 @@ function showImagesPopup(cycleId) {
     popupCycleId.textContent = `Images for Cycle ${cycleId}`;
     popupImages.innerHTML = '';
 
-    // Fetch images for the cycle (simplified client-side example)
     fetch(`/api/cycle-images/${cycleId}/`)
         .then(response => response.json())
         .then(data => {
@@ -55,6 +95,7 @@ function showImagesPopup(cycleId) {
                 const img = document.createElement('img');
                 img.src = image.url;
                 img.className = 'max-w-[200px] max-h-[200px] m-2 cursor-pointer';
+                img.onclick = function() { showZoomImage(image.url); };
                 imgContainer.appendChild(img);
                 popupImages.appendChild(imgContainer);
             });
@@ -63,11 +104,20 @@ function showImagesPopup(cycleId) {
         .catch(error => console.error('Error fetching images:', error));
 }
 
+function showZoomImage(url) {
+    const zoomPopup = document.getElementById('zoomPopup');
+    const zoomImage = document.getElementById('zoomImage');
+    zoomImage.src = url;
+    zoomPopup.classList.remove('hidden');
+}
+
 function closePopup() {
     document.getElementById('imagePopup').classList.add('hidden');
 }
 
-// Placeholder for API (to be implemented)
+function closeZoom() {
+    document.getElementById('zoomPopup').classList.add('hidden');
+}
 </script>
 <style>
     .preview-image { max-width: 100px; max-height: 100px; margin: 5px; cursor: pointer; }
